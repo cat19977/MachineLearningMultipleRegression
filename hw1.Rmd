@@ -1,0 +1,193 @@
+---
+title: "Homework 1"
+subtitle: "Int. Data Analytics and Machine Learning (CMDA/CS/STAT 4654)"
+author: "Catherine Squillante"
+output: html_document
+---
+
+
+## Instructions
+
+This homework  covers the least squares and linear model lectures.  All work must be submitted electronically.  For full credit you must show all of your steps.   Use of computational tools (e.g., R) is encouraged; and when you do, code inputs and outputs must be shown *in-line* (not as an appendix) and be accompanied by plain English that briefly explains what the code is doing.  
+
+### Problem 1: Alternate least squares (20 pts)
+
+Suppose we assume the usual linear relationship $y_i = b_0 + b_1 x_i + e_i$ for $n$ pairs of observations $(x_1, y_1), (x_2, y_2), \dots, (x_n, y_n)$.  Now, show what we would calculate for the coefficients $b_0$ and $b_1$ under the following criteria.
+
+a.  (8 pts) Suppose we insist that the average error is zero: $\frac{1}{n}\sum_{i=1}^n e_i = 0$.  What condition must $b_0$ satisfy in order for that relationship to hold?
+
+b.  (12 pts)  Now further suppose that we insist upon the correlation between the inputs and the errors being zero: $r_{xe} = 0$.  Using the $b_0$ you found in part a., what condition must $b_1$ satisfy in order for that relationship to hold?
+!['Problem1'](prop1.jpg)
+
+### Problem 2: Variance of the slope (20 pts)
+
+In this problem we are going to calculate $\mathbb{V}\mathrm{ar}\{b_1\}$, the variance of the least squares estimate of the slope.  Below is a re-writing of the expression for $b_1$ we had from lecture, with capital letters used to denote what is random.  *I.e., note that we are only treating the observed $Y_i$ values as random for the purposes of this calculation.*
+
+$$
+b_1 = \frac{\sum_{i=1}^n(x_i - \bar{x})(Y_i - \bar{Y})}{\sum_{i=1}^n(x_i   - \bar{x})^2}
+$$
+
+a.  (12 pts)  First show that $b_1$ can be written as a weighted sum of the $Y_i$ values.  I.e., $b_1 = \sum_{i=1}^n w_i Y_i$, and provide an expression for the weights $w_i$.
+
+b.  (8 pts)  Now, calculate  $\mathbb{V}\mathrm{ar}\{b_1\} \equiv \mathbb{V}\mathrm{ar}\{b_1 \mid x_1, \dots, x_n\}$ by calculating the variance of the weighted sum you found in part a, treating $Y_i$ as $Y_i \mid x_i$, i.e., conditional on $x_i$.  
+
+!['Problem2'](prob2.jpg)
+
+### Problem 3: McDonalds (20 pts)
+
+You are the proud owner of eight McDonald's franchises around Roanoke.  You decide to do a little experiment by setting the price
+of a Happy Meal across the restaurants.  (Assume that demographics and clientele are similar for each franchise.)  You gather data on the number of Happy Meals sold at each franchise during a week of the pricing experiment.
+
+```{r}
+happymeal <- data.frame(price=c(1.5, 1.5, 1.75, 2.0, 2.0, 2.25, 2.5, 2.5),
+	sales=c(420, 450, 420, 380, 440, 380, 360, 360))
+```
+
+a. (4 pts) Ignore `price`.  If the `sales` are iid with mean $390$ and variance $\sigma^2$, what would you estimate for $\sigma^2$?  *Note, 390 is not equal to the average of the sales numbers above, but that doesn't mean it is a bad estimate.*
+```{r}
+res <- numeric(length = length(happymeal['sales']))
+for(i in seq_along(happymeal['sales'])){
+  res[i]<-(happymeal['sales'][i]-390)**2
+}
+a = Reduce("+", res)
+variance = Reduce("+", a)/8
+variance
+```
+
+b.  (4 pts) Now, assume that you model `sales` as independently distributed with variance $\sigma^2$ and mean $\mathbb{E}\{\mathrm{sales}_i\}=500 - 60\cdot \mathrm{price}_i$.  What would you estimate for $\sigma^2$?  By comparison to your estimate in (a.), what does this say about this model?
+```{r}
+res <- numeric(length = length(happymeal['sales']))
+for(i in seq_along(happymeal['sales'])){
+  res[i]<-(500-60*happymeal['price'][i] - happymeal['sales'][i])**2
+}
+nums = Reduce('+', res)
+sum = Reduce('+', nums)
+variance2 = sum/(8-2)
+variance2
+```
+Since this variance is lower than the one in a), it means that price has some power to predict the number of sales and there is likely a correlation between the two.
+
+c.  (4 pts) Find the correlation between `price` and `sales`, and use this to fit a regression line to the data.  Plot the data and your line together and describe the fit.
+```{r}
+cor(happymeal$price, happymeal$sales)
+reg <- lm(happymeal$sales ~ happymeal$price)
+plot(happymeal$price, happymeal$sales, ylab='sales', xlab='price')
+abline(reg)
+```
+
+d.  (4 pts) What is the average of the residuals from your fit in (c.)?  Is this good?
+```{r}
+mean(residuals(reg))
+```
+It is very close to 0 and that is good because it tells you that the regression line is very close to the best possible fit for the data.
+
+e.  (4 pts) How would you use the residuals to estimate $\sigma^2$ in this fitted model?  How does this estimate suggest that the fitted model compares to those in (a.) and (b.)?
+```{r}
+r = residuals(reg)
+res <- numeric(length = length(r))
+for(i in seq_along(r)){
+  res[i]=r[i]**2
+}
+sum = Reduce('+', res)
+var = sum/(length(r)-2)
+var
+```
+This variance is less than half as much as those in a and b. This means that the fitted model has a fair amount of predicting power.
+
+### Problem 4: Synthetic data (20 pts)
+
+
+Use the `rnorm` function in R to generate 100 samples of $X \sim \mathcal{N}(0,2)$ (for help use `?rnorm` ) and for each draw, simulate $Y_i$ from the simple linear regression model $Y_i = 2.5-1.0X_i + \epsilon_i$, where $\epsilon_i \stackrel{\mathrm{iid}}{\sim} \mathcal{N}(0,3)$.
+
+a.  (4 pts) Show the scatter plot of $Y$ versus $X$ along with the true regression line.
+```{r}
+x = rnorm(n=100, mean=0, sd=2)
+res <- numeric(length = 100)
+for(i in seq_along(res)){
+  res[i]=2.5-1.0*x[i]+rnorm(n=1, mean=0, sd=3)
+}
+yi = res
+plot(x, yi)
+abline(lm(yi~x))
+```
+
+b. (7 pts) Split the sample into 2 subsets of size 25 and 75. For each subset, run the regression of $Y$ on $X$.  Add each fitted regression line (use color) to your plot from (a.). Why are they not the same?  
+```{r}
+x_1 = x[0:75]
+x_2 = x[75:100]
+
+y_1 = yi[0:75]
+y_2 = yi[75:100]
+
+plot(x, yi)
+abline(lm(yi~x))
+
+abline(lm(y_1~x_1), col='red')
+abline(lm(y_2~x_2), col='blue')
+```
+
+They aren't the same because the variables have random error. The one with 75 data points (red) is closer to the true regression line simply because there's more points.
+
+c.  (2 pts) Considering your two samples, what are your marginal sample means (i.e., estimates) for $Y$?  What is the true marginal mean?  
+```{r}
+sample_75_mean = mean(y_1)
+sample_75_mean
+sample_25_mean = mean(y_2)
+sample_25_mean
+true_mean = mean(yi)
+true_mean
+```
+
+d.  (7 pts) Calculate the bounds of the *true* 90% prediction interval and add them to your plot (use `?qnorm` for help with quantiles and and `lty=2` in `lines()` to get a dashed line).  What percentage of your observations are outside of this interval? 
+```{r}
+mean = mean(yi)
+sd = sd(yi)
+n=100
+error <- qnorm(1-.1/2)*sd/sqrt(n)
+low = mean-error
+high = mean+error
+plot(x, yi)
+lines(x=c(-10,10), y=c(low,low), lty=2)
+lines(x=c(-10,10), y=c(high,high), lty=2)
+```
+
+
+### Problem 5: Maintenance costs (20 pts)
+
+The cost of maintenance of a certain type of tractor seems to increase with age.  The file `tractor.csv` contains ages (years) and 6-monthly maintenance costs for $n=17$ such tractors.
+
+a.  (4 pts) Create a plot of tractor maintenance `cost` versus `age`.
+```{r}
+tractor <- read.csv("~/Documents/Documents/Machine Learning/tractor.csv")
+plot(tractor$age, tractor$cost, xlab='age', ylab='cost')
+```
+
+b.  (6 pts) Find the least squares fit to the model
+$$
+\mathrm{cost}_i = b_0 + b_i \mathrm{age}_i + e_i
+$$
+in two ways: (i) using the `lm` command and (ii) by calculating a correlation and standard deviations [verify that they give the same answer].  Overlay the fitted line on the plot from part (a.).
+```{r}
+plot(tractor$age, tractor$cost, xlab='age', ylab='cost')
+i = lm(tractor$cost ~ tractor$age)
+i
+abline(i)
+```
+
+c.  (5 pts) What is the variance decomposition for the regression model fit in (b.) (i.e., what are SST, SSE, and SSR?).  What is $R^2$ for the regression?
+```{r}
+r_sq = summary(i)$r.square
+r_sq
+sse = sum((fitted(i) - mean(tractor$cost))^2)
+sse
+ssr = sum((fitted(i) - tractor$cost)^2)
+ssr
+sst = sse + ssr
+sst
+```
+
+d.  (5 pts) Suppose you were considering buying a tractor that is three years old.  Using the values obtained in (b.), what would you expect your six-monthly maintenance costs to be?  
+```{r}
+cost = 407.1 + 116.3*3
+cost
+```

@@ -1,0 +1,277 @@
+---
+title: "Homework 3"
+author: "Catherine Squillante"
+subtitle: Int. Data Analytics and Machine Learning (CMDA/CS/STAT 4654)
+output:
+  html_document: default
+  pdf_document: default
+---
+
+
+## Instructions
+
+This homework covers the multiple linear model and stepwise model selection lectures.  All work must be submitted electronically.  For full credit you must show all of your steps.   Use of computational tools (e.g., R) is encouraged; and when you do, code inputs and outputs must be shown *in-line* (not as an appendix) and be accompanied by plain English that briefly explains what the code is doing. 
+
+### Problem 1: Infant nutrition (20 pts)
+
+This question involves data from a study on the [nutrition of infants and preschool children in the north central region of the United States of America](https://www.ncbi.nlm.nih.gov/labs/articles/4668061/) It is available on the course web page as [nutrition.csv](nutrition.csv), and contains 72 observations of boys' weight/height ratio (`woh`) for equally spaced values of `age` in months.
+
+a.  (3 pts) Plot the data, and overlay the least squares line and a 95% prediction interval in the range of the data.  Comment on the goodness of fit.`
+```{r}
+nutrition <- read.csv("~/Documents/Documents/Machine Learning/nutrition.csv")
+fit <- lm(woh ~ age, data=nutrition)
+p <- predict(fit, newdata = nutrition, interval = "prediction")
+plot(nutrition$age, nutrition$woh, main="prediction interval", xlab = "age", ylab="woh")
+x <- seq(0,max(nutrition$age),length=length(nutrition$age))
+lines(x, p[,1])
+lines(x, p[,2], col=2, lty=2)
+lines(x, p[,3], col=2, lty=2)
+```
+
+The fit tells us that there is a 95% chance new data points will fall in between the prediction interval (represented by the red lines on the graph.) The r squared value is .8199, which means approximately 82% of the variability of the response data around the mean is explained by the model.  
+
+b.  (7 pts) The authors of the study have reason to believe that the observations fall into two groups: (1) the first seven boys and (2) the remaining 65.  By introducing an appropriate dummy variable and interaction term, find the least squares equations of these lines, and give the 95% confidence intervals of the corresponding intercepts and slopes.  Are these significantly different from zero?
+```{r}
+cat <-nutrition$age < 6.5
+early <- as.factor(cat)
+reg <- lm(nutrition$woh ~ nutrition$age + early + nutrition$age:early)
+conf <- confint(reg, level = .95)
+##intercept, slope, CI for first group:
+c(reg$coefficients[1] + reg$coefficients[3], reg$coefficients[2] + reg$coefficients[4])
+##int CI
+c(conf[1]+conf[3], conf[1,2]+conf[3,2])
+##slope CI
+c(conf[2]+conf[4], conf[2,2]+conf[4,2])
+
+##intercept, slope, CI for second group:
+c(reg$coefficients[1], reg$coefficients[2])
+##int CI
+c(conf[1], conf[1,2])
+##slope CI
+c(conf[2], conf[2,2])
+```
+
+Yes, these are statistically different from 0 because all of the values are statistically significant based on the lm results.
+
+c.  (5 pts) Overlay the two new lines and corresponding prediction intervals on your plot from part (a) in such a way as they cover *only* their respective `age` ranges (i.e., so that they do not overlap).  Comment on the goodness of fit of this new model.
+```{r}
+
+plot(nutrition$age, nutrition$woh, main="prediction interval", xlab = "age", ylab="woh")
+x <- seq(6.5,max(nutrition$age),length=length(nutrition$age))
+i1 = reg$coefficients[1] + reg$coefficients[3]
+s1 = reg$coefficients[2] + reg$coefficients[4]
+i2 = reg$coefficients[1]
+s2 = reg$coefficients[2]
+ci1 = conf[1]+conf[3]
+si1 = conf[2]+conf[4]
+ci2 = conf[1,2]+conf[3,2]
+si2 = conf[2,2]+conf[4,2]
+segments(x0 = -1, y0=i1 + -1*s1, x1=6.5, y1=i1+6.5*s1)
+segments(x0 = 6.5, y0=i2 + 6.5*s2, x1=80, y1=i2+80*s2)
+segments(x0 = 6.5, y0=conf[1] + 6.5*conf[2], x1=80, y1=conf[1]+80*conf[2], col=2, lty=2)
+segments(x0 = 6.5, y0=conf[1,2] + 6.5*conf[2,2], x1=80, y1=conf[1,2]+80*conf[2,2], col=2, lty=2)
+segments(x0 = -1, y0=ci1 + -1*si1, x1=6.5, y1=ci1+6.5*si1, col=2, lty=2)
+segments(x0 = -1, y0=ci2 + -1*si2, x1=6.5, y1=ci2+6.5*si2, col=2, lty=2)
+```
+
+d.  (5 pts) Explain a test which allows us to choose between the fits in (a) and (b).  Perform the test and explain the result.
+```{r}
+fit = lm(nutrition$woh ~ nutrition$age)
+anova(fit, reg)
+```
+
+Perform the partial F test. This tells us whether the added predictors are worthwile. The F value in obtained from the anova test above is very statistically significant. The null hypothesis is rejected, meaning the added predictor is useful and the fit from part(b) is better. 
+
+### Problem 2: Beef -- its what's for dinner (15 pts)
+
+In 1988, US cattle producers voted on whether or not to each pay a dollar per head towards the marketing campaigns of the American Beef Council.  At the time of this vote, the council's TV campaign featured a voice-over by actor Robert Mitchum, using the theme "Beef -- it's what's for dinner."  To understand the vote results (it passed), the Montana state cattlemen's association looked at the effect of the physical size of the farm and the value of the farms' gross revenue on voter preference.  The data  (in [beef.csv](beef.csv)) consist of the vote results (%`YES`), average size of farm (hundreds of acres), and average value of products sold annually by each farm (in K$) for each of Montana's 56 counties.
+
+a.  (5 pts) Plot the data and comment on what you see.  How will this effect your analysis?
+```{r}
+beef <- read.csv("~/Downloads/beef.csv")
+plot(beef)
+```
+
+This plot shows that there is a pretty strong positive correlation between size and val.There is a moderate negative correlation between yes and size. And a weak negative correlation between yes and val. There is multicollinearity because the predictors (size and val) are correlated with themselves. They are actually more correlated with themselves, so it will be harder to make confident inference about these predictors. There is also some bunching (more data points for val at the lower x values), so we will probably want to take the logarithm. 
+
+b.  (5 pts) Fit a regression model for `YES` with both `SIZE` and $\log($`VAL`$)$ as covariates.  Interpret the results.  What regression assumptions might we have violated here? 
+```{r}
+attach(beef)
+reg = lm(YES ~ SIZE + log(VAL))
+summary(reg)
+```
+
+SIZE is a significant predictor, as summary shows the low p value. However, VAL may not be a good predictor since is has a high p value and is not very significant. This violates the assumption that the predictor variables are independent from one another leading to large standard errors. 
+
+c.  (5 pts) Find a better model: does the effect of `SIZE` change depending on $\log($`VAL`$)$? What is your estimate of the effect on `YES` of a unit change `SIZE`?  Interpret your conclusion.
+```{r}
+attach(beef)
+reg1 = lm(YES ~ SIZE*log(VAL))
+summary(reg)
+summary(lm(YES ~ SIZE))
+```
+Yes, the effect of size changes depending on log(VAL). The summary shows that the SIZE: log(VAL) relationship is significant based on its small p value. Based on the second R output above, there is a negative correlation between size and yes. For every unit increase in size, there is a ~.289 decrease in yes. 
+
+### Problem 3: Weighted regression (20 pts)
+
+Consider a situation where each $(x_i, y_i)$ pair is given a weight $w_i > 0$, for $i=1,\dots,n$ measuring its importance relative to the other pairs in the data.  Otherwise the multiple linear regression setup is the same as always: $x_i$ and $\beta$ are $p$-vectors, the variance is constant, etc.  
+
+a.  (5 pts) Ignoring for the moment the typical Gaussianity assumption on the noise, consider the following loss function similar as a weighted analog of the ordinary least squares.
+$$
+\sum_{i=1}^n w_i (y_i - x_i^\top \beta)^2
+$$ 
+Find an expression for the setting $\hat{\beta}$ that minimizes that loss.  *Hint: You might find it helpful to vectorize the loss function above.*
+!['3a'](3AA.png)
+
+b.  (4 pts) Now, suppose that your data was comprised of $n$ unique $p$-variate $x_i$ predictors, and at each one of those settings you had $w_i \geq 1$ observations $y_{i1}, \dots, y_{iw_i}$.  These are $w_i$ *replicates* observed at $x_i$.  Write down the full multiple linear regression model for such data, assuming $\epsilon_{ij} \stackrel{\mathrm{iid}}{\sim} \mathcal{N}(0, \sigma^2)$, and derive an expression for the corresponding the log likelihood.  *Hint: consider using a double sum.*
+!['3b'](3b.png)
+
+c.  (5 pts) Show that the MLE $\hat{\beta}$ from the likelihood in (b) may be found by applying your results from (a--b) using $y_i \equiv \bar{y}_i = \frac{1}{w_i} \sum_{j=1}^{w_i} y_{ij}$.  That is, although you have $\sum_{i=1}^n w_i \equiv N$ data points, and potentially $N \gg n$, once you have the $\bar{y}_i$'s your calculations need only involve working with $n$ quantities, and you'll get the same answer as if you had performed the calculations with all $N$ $y$-values.
+!['3c'](3c.png)
+
+d.  (6 pts) However, show that using the $n$ averages $\bar{y}_i$ is *not* sufficient for estimating $\hat{\sigma}^2$.  That is, you won't get the same answer using just the $\bar{y}_i$'s as you would by working with all $N$ quantities.  What must you additionally know about each collection of replicates $y_{i1}, \dots, y_{i w_i}$ so that your calculations involve working with $2n$ quantities rather than $N$?  Derive $\hat{\sigma}^2$ using those $2n$ quantities.
+!['3d'](3d.png)
+
+
+### Problem 4: Cook's distance (20 pts)
+
+Consider the linear model $Y = X\beta + \epsilon$, where $X$ is a known $n \times p$ matrix, $\epsilon \sim N_n(0,\sigma^2I)$, and let $x_i^\top$ denote the $i$th row of $X$.  
+
+a.  (5 pts) Let $X_{(-i)}$ denote the $(n-1) \times p$ matrix obtained by deleting the $i^\mathrm{th}$ row of $X$, and suppose that this matrix is also of full rank $p$.  Show that 
+$$
+X_{(-i)}^\top X_{(-i)} = X^\top X - x_ix_i^\top.
+$$
+!['4a'](4a.png)
+b.  (7 pts) Let $\hat{\beta} = (X^\top X)^{-1}X^\top Y$ denote the MLE in the model with all $n$ observations, and let $\hat{\beta}_{(-i)} = (X_{(-i)}^\top X_{(-i)})^{-1}X_{(-i)}^\top Y_{(-i)}$ denote the MLE in the model with the $i^\mathrm{th}$ observation deleted.  Show that
+\[
+\hat{\beta} - \hat{\beta}_{(-i)} = \frac{1}{1-h_i}(X^\top X)^{-1}x_i e_i,
+\]
+where $h_i$ is the leverage of the $i^\mathrm{th}$ data point and $e_i$ is our usual residual.  *Hint: you might find the [Sherman--Morrison--Woodbury formula](https://en.wikipedia.org/wiki/Sherman%E2%80%93Morrison_formula) useful.*
+!['4b'](4b.png)
+
+c.   (6 pts) Cook's distance of the observation $(x_i,y_i)$ is defined as
+$$
+D_i = \frac{1}{ps^2}(\hat{\beta}_{(-i)} -
+\hat{\beta})^\top X^\top X(\hat{\beta}_{(-i)} - \hat{\beta}), \quad
+i=1,\ldots,n,
+$$
+where $s^2 = \|Y - X\hat{\beta}\|^2/(n-p)$.  It may
+appear that we need to fit $n+1$ linear models in order to calculate
+all of the Cook's distances.  Deduce, however, that
+$$
+D_i = \frac{1}{p}\Bigl(\frac{h_i}{1-h_i}\Bigr)\tilde{r}_i^2,
+$$
+where $\tilde{r}_i = \frac{e_i}{s\sqrt{1-h_i}}$ is (very similar to) the $i^\mathrm{th}$
+studentized fitted residual (given in class).  Actually, this is called the *internally studentized* residual, whereas our version in class is the *externally* studentized one.
+!['4c'](4c.png)
+
+d.  (2 pts) Briefly describe what Cook's distance is measuring and why it might be helpful.
+
+Cook's distance gives you a sense of the influence the ith data point has. It can be used to indicate very influential points so they can be checked for validity. 
+
+### Problem 5: Air pollution (25 pts)
+
+
+Researchers at General Motors collected data on 60 U.S. Standard Metropolitan Statistical Areas (SMSA's) in a study of whether or not air pollution contributes to mortality. The data are available as [smsa.csv](smsa.csv) on the course web page.  The dependent variable for analysis is age adjusted `Mortality` rate.  Several (potential) explanatory variables include measures of demographic characteristics of the cities, of climate characteristics and the air pollution potential of three different chemicals.  Specifically:
+
+
+Variable | Explanation |
+---------|-----------------------------------------------------|
+`JanT` | Mean January temperature (degrees Fahrenheit) |
+`JulyT` | Mean July temperature (degrees Fahrenheit) |
+`RelHum` | Relative Humidity |
+`Rain` | Annual rainfall (inches) |
+`Edu` | Median education |
+`PopD` | Population density |
+`NonWht` | Percentage of non whites |
+`WC` | Percentage of white collar workers |
+`Pop` | Population |
+`PHouse` | Population per household |
+`Income` | Median income |
+`HCPot` | HC pollution potential |
+`NOxPot` | Nitrous Oxide pollution potential |
+`SO2Pot` | Sulfur Dioxide pollution potential |
+
+
+a.  (4 pts) Plot the `Mortality` rate versus each of the predictor variables, above, and comment.  Do the plots suggest any transformations that might be helpful?
+```{r}
+smsa <- read.csv("~/Documents/Documents/Machine Learning/smsa.csv")
+attach(smsa)
+par(mfrow=c(3,5), mar=c(5, 2, 1, 1))
+plot(smsa[,1], smsa$Mortality)
+for(i in c(1:4, 6:15)){
+  plot(smsa[,i], smsa$Mortality, xlab=names(smsa)[i], ylab = "Mortality")
+}
+```
+
+Many of the plots are bunched up at the lower x values, suggesting that log transformations might be helpful. It looks like mortality decreases with education and income. And increases with temperature and NonWht. 
+
+b.  (5 pts) Describe and fit a linear model that includes (additively) all of the (possibly transformed) set of predictors from part (a).  Comment on the usefulness of the regression, the significance of any individual predictors, and the overall quality of fit.
+```{r}
+YX <- data.frame(Mortality = smsa$Mortality, JanT=smsa$JanT, JulyT=smsa$JulyT, RelHum = smsa$RelHum, Rain = smsa$Rain, Edu=smsa$Edu, PopD=smsa$PopD, NonWht = smsa$NonWht, WC=smsa$WC, lpop=log(smsa$Pop), PHouse = smsa$PHouse, Income = smsa$Income, lHCPot = log(smsa$HCPot), lNoxPot = log(smsa$NOxPot), lS02Pot = smsa$S02Pot)
+attach(YX)
+fit1 <-lm(Mortality ~ ., data=YX)
+summary(fit1)
+```
+
+The transformation reveals that many other columns are useful that didn't originally appear to have a strong correlation such as JanT, Rain, and lNoxPot. The R value shows that ~76% of the variability is explained by the dependent variables, so it's a pretty good fit. The variables with very small t statistics (like RelHum) are the least useful for explaining the trend in mortality.
+
+c.  (5 pts) By following your nose and using $t$-tests and/or $F$-tests, select a model using the (possibly transformed) set of predictors from part (a).  Do not include any interactions.  Comment on the quality of fit of your final model in absolute terms and relative to the fit from part (b).  Interpret the results as might be relevant to GM.
+
+```{r}
+fit2 = lm(Mortality ~ . -RelHum -Income -lS02Pot -lpop -JulyT -PopD -PHouse -Edu -lHCPot, data=YX)
+summary(fit2)
+```
+
+Fit2 is a the model minus all of the variables that were not statistically significant in the first fit. We are left with only the factors that significantly affect the mortality rate. The R squared value shows that ~72% of the variation in the data are explained by these variables. This is marginally lower than the first fit that had more than double the explanatory variables which means that the ones taken away were unnessary. The amount of nitrous oxide is the best predictor of mortality. 
+
+d.  (6 pts) Repeat the exercise in (c), above, using BIC and the `step` function, and comment on the relative models/fits. Compare the model from (c) with this new one by their approximate model probabilities.
+```{r}
+n <- length(Mortality)
+fit3 = lm(Mortality ~ . -RelHum -Income -lS02Pot -lpop -JulyT -PopD -PHouse -Edu , data=YX)
+fit4 = lm(Mortality ~ . -RelHum -Income -lS02Pot -lpop -JulyT -PopD -PHouse -Edu , data=YX)
+fit5 = lm(Mortality ~ . -RelHum -Income -lS02Pot -lpop -JulyT -PopD -PHouse -Edu, data=YX)
+fit6 = lm(Mortality ~ . -RelHum -Income -lS02Pot -lpop -JulyT -PopD -PHouse, data=YX)
+fit7 = lm(Mortality ~ . -RelHum -Income -lS02Pot -lpop -JulyT -PopD, data=YX)
+fit8 = lm(Mortality ~ . -RelHum -Income -lS02Pot -lpop -JulyT, data=YX)
+fit9 = lm(Mortality ~ . -RelHum -Income -lS02Pot -lpop , data=YX)
+fit10 = lm(Mortality ~ . -RelHum -Income -lS02Pot  , data=YX)
+fit11 = lm(Mortality ~ . -RelHum -Income , data=YX)
+fit12 = lm(Mortality ~ . -RelHum, data=YX)
+
+bic1 <- extractAIC(fit1, k=log(n))[2]
+bic2 <- extractAIC(fit2, k=log(n))[2]
+b3 <- extractAIC(fit3, k=log(n))[2]
+b4 <- extractAIC(fit4, k=log(n))[2]
+b5 <- extractAIC(fit5, k=log(n))[2]
+b6 <- extractAIC(fit6, k=log(n))[2]
+b7 <- extractAIC(fit7, k=log(n))[2]
+b8 <- extractAIC(fit8, k=log(n))[2]
+b9 <- extractAIC(fit9, k=log(n))[2]
+b10 <- extractAIC(fit10, k=log(n))[2]
+b11 <- extractAIC(fit11, k=log(n))[2]
+b12 <- extractAIC(fit12, k=log(n))[2]
+bics <- c(bic1, bic2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12)
+probs <- exp(-0.5 * (bics - min(bics)))
+probs <- probs/sum(probs)
+max(probs)
+```
+Bic shows that the second model from part c is the best because it has the highest probability. 
+
+e.  (5 pts) Now consider interactions amongst the explanatory variables selected in part (d).  Use BIC and the `step` function to help select the final model.  As above, comment on the quality of fit of your final model, interpret the results and compare the model probabilities.
+```{r}
+full <- lm(Mortality ~ .^2, data = YX)
+start <- fit2
+fwd <- step(start, scope=formula(full), direction = "forward", k=log(n))
+back <- step(start, scope=formula(full), direction = "backward", k=log(n))
+b13 <- extractAIC(fwd, k=log(n))[2]
+b14 <- extractAIC(back, k=log(n))[2]
+bics <- c(bic1, bic2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14)
+probs <- exp(-0.5 * (bics - min(bics)))
+probs <- probs/sum(probs)
+max(probs)
+##final model:
+fwd
+```
+
+The model found by the step forward step function now has the highest probability, meaning it's the best model. The new model is the same as the one by looking at t values in part c except it includes the Rain:lNoxPot interaction. 
